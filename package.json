@@ -4,7 +4,7 @@
   "description": "KANDALA ULTRA - WhatsApp Pairing Link Generator",
   "private": true,
   "engines": {
-    "node": "18.x"
+    "node": "20.x"
   },
   "scripts": {
     "dev": "node server.js",
