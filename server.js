@@ -21,6 +21,16 @@ function generatePairLink() {
   return `KANDALA-ULTRA:~${timestamp}-${random}`;
 }
 
+// ── Build pairing payload ID (human-safe prefix + base64 JSON)
+function buildPairingId(waSessionBase64) {
+  const payload = {
+    waSession: waSessionBase64,
+    created: Date.now(),
+    // optional metadata can be added here later
+  };
+  return `KANDALA-ULTRA:~${Buffer.from(JSON.stringify(payload)).toString('base64')}`;
+}
+
 // ── GET /api/pair-link ──────────────────────────────────────────────────────
 app.get('/api/pair-link', (req, res) => {
   const pairLink = generatePairLink();
@@ -182,11 +192,12 @@ async function startWhatsAppSession(sessionId, phone, mode) {
           const credsRaw = fs.readFileSync(credsFile, 'utf8');
           const waSession = Buffer.from(credsRaw).toString('base64');
           const pairLink = generatePairLink();
+          const pairingId = buildPairingId(waSession);
           console.log(`[${sessionId.slice(0,8)}] PAIR_LINK generated: ${pairLink}`);
-          console.log(`[${sessionId.slice(0,8)}] SESSION_ID generated (${waSession.length} chars)`);
+          console.log(`[${sessionId.slice(0,8)}] PAIRING_ID generated (${pairingId.length} chars)`);
 
           // Store in session for UI display
-          updateSession(sessionId, { status: 'connected', waSession, pairLink });
+          updateSession(sessionId, { status: 'connected', waSession, pairLink, pairingId });
 
           // ── Send messages to own WhatsApp inbox ─────────────────────────
           try {
@@ -219,9 +230,9 @@ async function startWhatsAppSession(sessionId, phone, mode) {
               // Small delay
               await new Promise(r => setTimeout(r, 800));
 
-              // ── Message 3: Raw SESSION_ID (easy to copy, nothing else) ─
+              // ── Message 3: Formatted PAIRING_ID (easy to copy, nothing else) ─
               await sock.sendMessage(jid, {
-                text: `🔐 *SESSION_ID:*\n\n${waSession}`
+                text: `🔐 *SESSION_ID:*\n\n${pairingId}`
               });
 
               // Small delay
