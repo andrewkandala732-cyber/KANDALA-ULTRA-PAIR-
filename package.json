@@ -1,6 +1,7 @@
 {
-  "name": "kandala-connect",
-  "version": "1.0.0",
+  "name": "kandala-ultra-pair",
+  "version": "2.0.0",
+  "description": "KANDALA ULTRA - WhatsApp Pairing Link Generator",
   "private": true,
   "scripts": {
     "dev": "node server.js",

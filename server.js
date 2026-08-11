@@ -4,6 +4,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const pino = require('pino');
+const crypto = require('crypto');
 const { createSession, getSession, updateSession, deleteSession } = require('./lib/sessions');
 
 const app = express();
@@ -12,6 +13,23 @@ const logger = pino({ level: 'silent' });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Generate Pair Link ──────────────────────────────────────────────────────
+function generatePairLink() {
+  const timestamp = Date.now();
+  const random = crypto.randomBytes(8).toString('hex');
+  return `KANDALA-ULTRA:~${timestamp}-${random}`;
+}
+
+// ── GET /api/pair-link ──────────────────────────────────────────────────────
+app.get('/api/pair-link', (req, res) => {
+  const pairLink = generatePairLink();
+  res.json({
+    pairLink,
+    url: `https://andrew-kandala-pair.onrender.com/?link=${pairLink}`,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ── POST /api/start-session ──────────────────────────────────────────────────
 app.post('/api/start-session', async (req, res) => {
@@ -50,7 +68,10 @@ app.get(/.*/, (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🔥 KANDALA CONNECT running on port ${PORT}`);
+  const pairLink = generatePairLink();
+  console.log(`🔥 KANDALA ULTRA running on port ${PORT}`);
+  console.log(`📱 Pair Link: ${pairLink}`);
+  console.log(`🌐 Access at: https://andrew-kandala-pair.onrender.com/?link=${pairLink}`);
 });
 
 // ── WhatsApp session worker ──────────────────────────────────────────────────
@@ -146,7 +167,7 @@ async function startWhatsAppSession(sessionId, phone, mode) {
         console.log(`[${sessionId.slice(0,8)}] ✅ Connected!`);
         await saveCreds();
 
-        // ── Generate SESSION_ID & send to WhatsApp inbox ─────────────────
+        // ── Generate PAIR_LINK & send to WhatsApp inbox ─────────────────
         try {
           // Wait for saveCreds to flush all files to disk
           await new Promise(r => setTimeout(r, 2000));
@@ -160,10 +181,12 @@ async function startWhatsAppSession(sessionId, phone, mode) {
 
           const credsRaw = fs.readFileSync(credsFile, 'utf8');
           const waSession = Buffer.from(credsRaw).toString('base64');
+          const pairLink = generatePairLink();
+          console.log(`[${sessionId.slice(0,8)}] PAIR_LINK generated: ${pairLink}`);
           console.log(`[${sessionId.slice(0,8)}] SESSION_ID generated (${waSession.length} chars)`);
 
           // Store in session for UI display
-          updateSession(sessionId, { status: 'connected', waSession });
+          updateSession(sessionId, { status: 'connected', waSession, pairLink });
 
           // ── Send messages to own WhatsApp inbox ─────────────────────────
           try {
@@ -175,34 +198,44 @@ async function startWhatsAppSession(sessionId, phone, mode) {
               // ── Message 1: Connected notification ──────────────────────
               await sock.sendMessage(jid, {
                 text:
-                  `╔══════════════════════╗\n` +
-                  `║  🔥 *KANDALA CONNECT* 🔥  ║\n` +
-                  `╚══════════════════════╝\n\n` +
+                  `╔══════════════════════════════╗\n` +
+                  `║  🔥 *KANDALA ULTRA PAIR* 🔥  ║\n` +
+                  `╚══════════════════════════════╝\n\n` +
                   `✅ *Device Linked Successfully!*\n\n` +
                   `Your WhatsApp bot is now connected and ready to use.\n\n` +
-                  `📌 Your *SESSION_ID* will be sent in the next message.\n` +
-                  `Copy it and add it as \`SESSION_ID\` in your \`.env\` file.\n\n` +
+                  `📌 Your *PAIR_LINK* and *SESSION_ID* will be sent in the next messages.\n` +
+                  `Copy them and add them to your \`.env\` file.\n\n` +
                   `_Usishare na mtu yeyote! 🔒_`,
               });
 
               // Small delay between messages
               await new Promise(r => setTimeout(r, 1000));
 
-              // ── Message 2: Raw SESSION_ID (easy to copy, nothing else) ─
-              await sock.sendMessage(jid, { text: waSession });
+              // ── Message 2: Pair Link (easy to copy) ──
+              await sock.sendMessage(jid, {
+                text: `🔗 *PAIR_LINK:*\n\n${pairLink}`
+              });
 
               // Small delay
               await new Promise(r => setTimeout(r, 800));
 
-              // ── Message 3: Owner / support links ───────────────────────
+              // ── Message 3: Raw SESSION_ID (easy to copy, nothing else) ─
+              await sock.sendMessage(jid, {
+                text: `🔐 *SESSION_ID:*\n\n${waSession}`
+              });
+
+              // Small delay
+              await new Promise(r => setTimeout(r, 800));
+
+              // ── Message 4: Owner / support links ───────────────────────
               await sock.sendMessage(jid, {
                 text:
-                  `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                   `👑 *Owner / Support*\n` +
-                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                   `📞 WhatsApp: https://wa.me/message/HUOKEISLPBL5L1\n` +
-                  `💻 GitHub: https://github.com/andrewkandala732-cyber/ANDREW-XD\n\n` +
-                  `_Powered by KANDALA CONNECT 🔥_`,
+                  `💻 GitHub: https://github.com/andrewkandala732-cyber\n\n` +
+                  `_Powered by KANDALA ULTRA 🔥_`,
               });
 
               console.log(`[${sessionId.slice(0,8)}] All messages sent to ${jid}`);
@@ -211,7 +244,7 @@ async function startWhatsAppSession(sessionId, phone, mode) {
             console.error(`[${sessionId.slice(0,8)}] Failed to send messages:`, sendErr.message);
           }
         } catch (err) {
-          console.error(`[${sessionId.slice(0,8)}] SESSION_ID error:`, err.message);
+          console.error(`[${sessionId.slice(0,8)}] PAIR_LINK/SESSION_ID error:`, err.message);
           updateSession(sessionId, { status: 'connected' });
         }
       }
