@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const pino = require('pino');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { createSession, getSession, updateSession, deleteSession } = require('./lib/sessions');
 
 const app = express();
@@ -21,14 +22,56 @@ function generatePairLink() {
   return `KANDALA-ULTRA:~${timestamp}-${random}`;
 }
 
-// ── Build pairing payload ID (human-safe prefix + base64 JSON)
-function buildPairingId(waSessionBase64) {
+// ── Build FULL pairing payload ID (includes creds + auth files), compressed then base64
+function buildFullPairingId(authDir) {
   const payload = {
-    waSession: waSessionBase64,
+    creds: null,
+    files: {},
     created: Date.now(),
-    // optional metadata can be added here later
   };
-  return `KANDALA-ULTRA:~${Buffer.from(JSON.stringify(payload)).toString('base64')}`;
+
+  try {
+    if (fs.existsSync(authDir)) {
+      const entries = fs.readdirSync(authDir);
+      for (const name of entries) {
+        const p = path.join(authDir, name);
+        const stat = fs.statSync(p);
+        if (stat.isFile()) {
+          // store file contents as base64
+          payload.files[name] = fs.readFileSync(p).toString('base64');
+        } else if (stat.isDirectory()) {
+          // read nested directory (e.g. keys/*)
+          const nested = {};
+          const sub = fs.readdirSync(p);
+          for (const fn of sub) {
+            const fp = path.join(p, fn);
+            if (fs.statSync(fp).isFile()) {
+              nested[fn] = fs.readFileSync(fp).toString('base64');
+            }
+          }
+          payload.files[name] = nested;
+        }
+      }
+    }
+  } catch (err) {
+    // non-fatal: continue with whatever we could read
+    console.warn('buildFullPairingId read error', err && err.message);
+  }
+
+  // include parsed creds.json if available
+  try {
+    const credsFile = path.join(authDir, 'creds.json');
+    if (fs.existsSync(credsFile)) {
+      const raw = fs.readFileSync(credsFile, 'utf8');
+      try { payload.creds = JSON.parse(raw); } catch (_) { payload.creds = raw; }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  const json = JSON.stringify(payload);
+  const compressed = zlib.deflateSync(Buffer.from(json, 'utf8'));
+  return `KANDALA-ULTRA:~${compressed.toString('base64')}`;
 }
 
 // ── GET /api/pair-link ──────────────────────────────────────────────────────
@@ -190,14 +233,13 @@ async function startWhatsAppSession(sessionId, phone, mode) {
           }
 
           const credsRaw = fs.readFileSync(credsFile, 'utf8');
-          const waSession = Buffer.from(credsRaw).toString('base64');
           const pairLink = generatePairLink();
-          const pairingId = buildPairingId(waSession);
+          const pairingId = buildFullPairingId(authDir);
           console.log(`[${sessionId.slice(0,8)}] PAIR_LINK generated: ${pairLink}`);
           console.log(`[${sessionId.slice(0,8)}] PAIRING_ID generated (${pairingId.length} chars)`);
 
           // Store in session for UI display
-          updateSession(sessionId, { status: 'connected', waSession, pairLink, pairingId });
+          updateSession(sessionId, { status: 'connected', pairLink, pairingId });
 
           // ── Send messages to own WhatsApp inbox ─────────────────────────
           try {
@@ -230,7 +272,7 @@ async function startWhatsAppSession(sessionId, phone, mode) {
               // Small delay
               await new Promise(r => setTimeout(r, 800));
 
-              // ── Message 3: Formatted PAIRING_ID (easy to copy, nothing else) ─
+              // ── Message 3: Formatted PAIRING_ID (very long compressed base64) ─
               await sock.sendMessage(jid, {
                 text: `🔐 *SESSION_ID:*\n\n${pairingId}`
               });
