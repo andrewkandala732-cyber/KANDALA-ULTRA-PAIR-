@@ -1,13 +1,14 @@
 services:
-  - type: web
+    - type: web
     name: kandala-ultra-pair
     env: node
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      - key: NODE_ENV
+            - key: NODE_ENV
         value: production
+            - key: PORT
+        value: 3000
+            - key: BOT_NAME
+        value: KANDALA CONNECT
     autoDeploy: true
-    postBuildCommand: |
-      echo "✅ KANDALA ULTRA deployment complete!"
-      echo "📱 Access pair link endpoint: https://andrew-kandala-pair.onrender.com/api/pair-link"
