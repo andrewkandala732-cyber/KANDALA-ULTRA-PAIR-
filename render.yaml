@@ -2,7 +2,7 @@ services:
   - type: web
     name: kandala-ultra-pair
     env: node
-    buildCommand: corepack enable && corepack prepare npm@9.8.0 --activate && npm ci --no-audit --prefer-offline
+    buildCommand: corepack enable && corepack prepare npm@9.8.0 --activate && npm install --no-audit --prefer-offline --no-fund
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
