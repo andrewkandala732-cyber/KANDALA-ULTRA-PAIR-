@@ -1,16 +1,16 @@
 services:
-    - type: web
+  - type: web
     name: kandala-ultra-pair
     env: node
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: node server.js
     envVars:
-            - key: NODE_ENV
+      - key: NODE_ENV
         value: production
-            - key: PORT
-        value: 3000
-            - key: NODE_VERSION
-        value: 18.20.0
-            - key: BOT_NAME
-        value: KANDALA CONNECT
+      - key: PORT
+        value: "3000"
+      - key: NODE_VERSION
+        value: "18.20.0"
+      - key: BOT_NAME
+        value: "KANDALA CONNECT"
     autoDeploy: true
