@@ -2,7 +2,7 @@ services:
   - type: web
     name: kandala-ultra-pair
     env: node
-    buildCommand: corepack enable && corepack prepare npm@9.8.0 --activate && npm install --no-audit --prefer-offline --no-fund
+    buildCommand: npm config set registry https://registry.npmjs.org && corepack enable && corepack prepare npm@9.8.0 --activate && npm install --no-audit --prefer-offline --no-fund
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
